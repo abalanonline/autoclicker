@@ -4,72 +4,27 @@ import com.diozero.api.DeviceMode;
 import com.diozero.api.DigitalInputOutputDevice;
 import com.diozero.api.DigitalOutputDevice;
 
-import java.awt.*;
-import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
+public class Tm1638v1 implements AutoCloseable {
 
-public class Tm1638 extends Component implements AutoCloseable, Runnable {
-
-	public static final int PWCLK_NS = 400;
 	private final DigitalOutputDevice stb;
 	private final DigitalOutputDevice clk;
 	private final DigitalInputOutputDevice dio;
-	private boolean stop;
-
 	public int brightness = 7;
-	public boolean[] led = new boolean[8];
-	public byte[] digit = new byte[8];
-	public boolean[] button = new boolean[8];
-	public KeyListener keyListener;
+	public boolean[] leds = new boolean[8];
 
-	public Tm1638(int stbGpio, int clkGpio, int dioGpio) {
+	public Tm1638v1(int stbGpio, int clkGpio, int dioGpio) {
 		this.stb = new DigitalOutputDevice(stbGpio);
 		this.clk = new DigitalOutputDevice(clkGpio);
 		this.dio = new DigitalInputOutputDevice(dioGpio, DeviceMode.DIGITAL_OUTPUT);
-		new Thread(this).start();
+		print("        ");
 	}
 
-	@Override
-	public void run() {
-		int[] command = new int[17];
-		while (!stop) {
-			writeCommand(0x40);
-			command[0] = 0xC0;
-			for (int i = 0, j = 0; i < 8; i++) {
-				command[++j] = this.digit[i];
-				command[++j] = this.led[i] ? 0xFF : 0;
-			}
-			writeCommand(command);
-			writeCommand(0x88 + Math.min(Math.max(0, brightness), 7));
-
-			strobeLow();
-			writeByte(0x42);
-			dio.setValue(true);
-			dio.setMode(DeviceMode.DIGITAL_INPUT);
-			int btnByte = 0;
-			for (int i = 0; i < 4; i++) btnByte |= readByte() << i;
-			for (int i = 0; i < 8; i++) {
-				boolean newButton = (1 << i & btnByte) != 0;
-				KeyListener keyListener = this.keyListener;
-				if (this.button[i] != newButton && keyListener != null) {
-					KeyEvent keyEvent = new KeyEvent(this, 0, 0, 0, KeyEvent.VK_0 + i, (char) ('0' + i));
-					if (newButton) {
-						keyListener.keyPressed(keyEvent);
-					} else {
-						keyListener.keyReleased(keyEvent);
-					}
-				}
-				this.button[i] = newButton;
-			}
-			dio.setMode(DeviceMode.DIGITAL_OUTPUT);
-			strobeHigh();
+	public static void sleep() {
+		try {
+			System.nanoTime();
+			Thread.sleep(0, 100_000);
+		} catch (InterruptedException ignore) {
 		}
-		stop = false;
-	}
-
-	private static void sleep() {
-		long nanoTime = System.nanoTime() + PWCLK_NS;
-		while (System.nanoTime() < nanoTime) ;
 	}
 
 	private void writeByte(int data) {
@@ -111,8 +66,24 @@ public class Tm1638 extends Component implements AutoCloseable, Runnable {
 		strobeLow();
 		for (int i = 0; i < data.length; i++) {
 			writeByte(data[i]);
+			sleep();
 		}
 		strobeHigh();
+	}
+
+	public int inkey() {
+		strobeLow();
+		writeByte(0x42);
+		dio.setValue(true);
+		dio.setMode(DeviceMode.DIGITAL_INPUT);
+		int result = 0;
+		for (int i = 0; i < 4; i++) {
+			result |= readByte() << i;
+		}
+		dio.setMode(DeviceMode.DIGITAL_OUTPUT);
+		//dio.setValue(false);
+		strobeHigh();
+		return result;
 	}
 
 	public static int to7(char c) {
@@ -140,20 +111,20 @@ public class Tm1638 extends Component implements AutoCloseable, Runnable {
 	}
 
 	public void print(String s) {
+		writeCommand(0x40);
 		s += "        ";
-		for (int i = 0; i < 8; i++) {
-			this.digit[i] = (byte) to7(s.charAt(i));
+		int[] command = new int[17];
+		command[0] = 0xC0;
+		for (int i = 0, j = 0; i < 8; i++) {
+			command[++j] = to7(s.charAt(i));
+			command[++j] = leds[i] ? 0xFF : 0;
 		}
-
+		writeCommand(command);
+		writeCommand(0x88 + Math.min(Math.max(0, brightness), 7));
 	}
 
 	@Override
 	public void close() {
-		this.stop = true;
-		try {
-			while (this.stop) Thread.sleep(1);
-		} catch (InterruptedException ignore) {
-		}
 		stb.close();
 		clk.close();
 		dio.close();
