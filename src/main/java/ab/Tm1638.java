@@ -140,9 +140,18 @@ public class Tm1638 extends Component implements AutoCloseable, Runnable {
 	}
 
 	public void print(String s) {
-		s += "        ";
-		for (int i = 0; i < 8; i++) {
-			this.digit[i] = (byte) to7(s.charAt(i));
+		print(s, 0);
+	}
+
+	public void print(String s, int x) {
+		for (int i = 0; i < s.length(); i++) {
+			final char c = s.charAt(i);
+			if (c == '.') {
+				this.digit[x - 1] |= 0b10000000;
+				continue;
+			}
+			if (x >= 8) break;
+			this.digit[x++] = (byte) to7(c);
 		}
 
 	}
