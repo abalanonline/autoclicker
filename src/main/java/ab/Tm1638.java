@@ -63,6 +63,9 @@ public class Tm1638 extends Component implements AutoCloseable, Runnable {
 			}
 			dio.setMode(DeviceMode.DIGITAL_OUTPUT);
 			strobeHigh();
+			synchronized (this) {
+				this.notifyAll();
+			}
 		}
 		stop = false;
 	}
@@ -153,13 +156,16 @@ public class Tm1638 extends Component implements AutoCloseable, Runnable {
 			if (x >= 8) break;
 			this.digit[x++] = (byte) to7(c);
 		}
-
 	}
 
 	@Override
 	public void close() {
-		this.stop = true;
 		try {
+			synchronized (this) {
+				this.wait();
+				this.wait();
+			}
+			this.stop = true;
 			while (this.stop) Thread.sleep(1);
 		} catch (InterruptedException ignore) {
 		}

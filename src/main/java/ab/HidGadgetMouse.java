@@ -57,4 +57,12 @@ public class HidGadgetMouse implements AutoCloseable {
     writeOutput(String.format("%d %d\n", x, y));
   }
 
+  private boolean[] hold = new boolean[3];
+
+  public void click(int button, boolean press) {
+    if (hold[button] == press) return;
+    hold[button] = press;
+    writeOutput(String.format("--b%d%s\n", button + 1, press ? " --hold" : ""));
+  }
+
 }

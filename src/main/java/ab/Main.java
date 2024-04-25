@@ -9,23 +9,28 @@ public class Main implements KeyListener, AutoCloseable, Runnable {
       0.001, 0.002, 0.004, 0.008, 0.016, 0.032, 0.064, 0.125, 0.250, 0.500,
       1.0, 2.0, 4.0, 8.0, 16.0, 32.0};
   private final Tm1638 tm1638;
-  private final HidGadgetMouse hidGadgetMouse;
+  private final HidGadgetMouse mouse;
   private int rate = 10;
+  private boolean[] hold = new boolean[3];
+  private long nano;
 
   public Main() {
-    hidGadgetMouse = new HidGadgetMouse("/dev/hidg0");
+    mouse = new HidGadgetMouse("/dev/hidg0");
     tm1638 = new Tm1638(17, 27, 22);
     tm1638.keyListener = this;
   }
 
   @Override
   public void close() {
+    mouse.click(0, false);
+    mouse.click(1, false);
     tm1638.close();
-    hidGadgetMouse.close();
+    mouse.close();
   }
 
   public void printRate() {
-    tm1638.print(String.format("%6s", String.format("%f", RATES[rate]).replaceAll("0+$", "")), 3);
+    tm1638.print(String.format("%6s",
+        String.format("%f", RATES[rate]).replaceAll("0+$", "").replaceAll("\\.$", ".0")), 3);
   }
 
   @Override
@@ -36,6 +41,11 @@ public class Main implements KeyListener, AutoCloseable, Runnable {
     tm1638.digit[2] = 0b1011000;
     printRate();
     for (int buttons = 0; buttons != 7;) {
+      long period = (long) (1_000_000_000 / RATES[rate]);
+      final long p1 = Math.min(period / 2, 200_000_000);
+      final boolean click = (System.nanoTime() - nano) % period < p1 && hold[0];
+      mouse.click(0, click);
+      tm1638.led[4] = click;
       try {
         Thread.sleep(1);
       } catch (InterruptedException ignore) {
@@ -70,9 +80,29 @@ public class Main implements KeyListener, AutoCloseable, Runnable {
       case '0': tm1638.brightness = Math.max(0, tm1638.brightness - 1); break;
       case '1': tm1638.brightness = Math.min(tm1638.brightness + 1, 7); break;
       case '2': break;
-      case '3': hidGadgetMouse.move(-20, -10); break;
-      case '4': if (rate > 0) rate--; printRate(); break;
-      case '5': if (rate < RATES.length - 1) rate++; printRate(); break;
+      case '3': mouse.move(-20, -10); break;
+      case '4':
+        nano = System.nanoTime();
+        rate = Math.max(0, rate - 1);
+        printRate();
+        break;
+      case '5':
+        nano = System.nanoTime();
+        rate = Math.min(rate + 1, RATES.length - 1);
+        printRate();
+        break;
+      case '6':
+        nano = System.nanoTime();
+        final boolean l = !hold[0];
+        hold[0] = l;
+        tm1638.led[6] = l;
+        break;
+      case '7':
+        final boolean r = !hold[1];
+        hold[1] = r;
+        tm1638.led[7] = r;
+        mouse.click(1, r);
+        break;
     }
   }
 
