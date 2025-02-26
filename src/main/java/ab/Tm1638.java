@@ -17,39 +17,97 @@
 
 package ab;
 
+import ab.tui.Tui;
 import com.diozero.api.DeviceMode;
 import com.diozero.api.DigitalInputOutputDevice;
 import com.diozero.api.DigitalOutputDevice;
 
-import java.awt.*;
-import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
+import java.awt.Dimension;
+import java.util.function.Consumer;
 
-public class Tm1638 extends Component implements AutoCloseable, Runnable {
+public class Tm1638 implements Tui {
 
   public static final int PWCLK_NS = 400;
-  private final DigitalOutputDevice stb;
-  private final DigitalOutputDevice clk;
-  private final DigitalInputOutputDevice dio;
-  private boolean stop;
+  private final int stbGpio;
+  private final int clkGpio;
+  private final int dioGpio;
+  private DigitalOutputDevice stb;
+  private DigitalOutputDevice clk;
+  private DigitalInputOutputDevice dio;
+  private Thread thread;
+  private boolean open;
+  private Consumer<String> keyListener;
 
   public int brightness = 7;
   public boolean[] led = new boolean[8];
   public byte[] digit = new byte[8];
   public boolean[] button = new boolean[8];
-  public KeyListener keyListener;
 
   public Tm1638(int stbGpio, int clkGpio, int dioGpio) {
-    this.stb = new DigitalOutputDevice(stbGpio);
-    this.clk = new DigitalOutputDevice(clkGpio);
-    this.dio = new DigitalInputOutputDevice(dioGpio, DeviceMode.DIGITAL_OUTPUT);
-    new Thread(this).start();
+    this.stbGpio = stbGpio;
+    this.clkGpio = clkGpio;
+    this.dioGpio = dioGpio;
   }
 
   @Override
-  public void run() {
+  public Tm1638 open() {
+    if (open) throw new IllegalStateException("not closed");
+    for (int i = 0; i < 8; i++) button[i] = false;
+    open = true;
+    stb = new DigitalOutputDevice(stbGpio);
+    clk = new DigitalOutputDevice(clkGpio);
+    dio = new DigitalInputOutputDevice(dioGpio, DeviceMode.DIGITAL_OUTPUT);
+    thread = new Thread(this::run);
+    thread.start();
+    return this;
+  }
+
+  @Override
+  public void close() {
+    if (!open) return;
+    for (int i = 0; i < 8; i++) {
+      digit[i] = 0;
+      led[i] = false;
+    }
+    try {
+      synchronized (this) {
+        this.wait();
+      }
+      open = false;
+      if (!thread.equals(Thread.currentThread())) thread.join();
+    } catch (InterruptedException ignore) {
+    }
+    stb.close();
+    clk.close();
+    dio.close();
+  }
+
+  @Override
+  public Dimension getSize() {
+    return new Dimension(8, 1);
+  }
+
+  @Override
+  public void print(int x, int y, String s, int attr) {
+    print(s, x);
+  }
+
+  @Override
+  public void update() {
+    // TODO double buffering
+  }
+
+  @Override
+  public void setKeyListener(Consumer<String> keyListener) {
+    this.keyListener = keyListener;
+  }
+
+  private void run() {
     int[] command = new int[17];
-    while (!stop) {
+    while (open) {
+      synchronized (this) {
+        this.notifyAll();
+      }
       writeCommand(0x40);
       command[0] = 0xC0;
       for (int i = 0, j = 0; i < 8; i++) {
@@ -67,24 +125,21 @@ public class Tm1638 extends Component implements AutoCloseable, Runnable {
       for (int i = 0; i < 4; i++) btnByte |= readByte() << i;
       for (int i = 0; i < 8; i++) {
         boolean newButton = (1 << i & btnByte) != 0;
-        KeyListener keyListener = this.keyListener;
+        Consumer<String> keyListener = this.keyListener;
         if (this.button[i] != newButton && keyListener != null) {
-          KeyEvent keyEvent = new KeyEvent(this, 0, 0, 0, KeyEvent.VK_0 + i, (char) ('0' + i));
+          String key = String.format("%d", i + 1);
           if (newButton) {
-            keyListener.keyPressed(keyEvent);
+            keyListener.accept("+" + key);
+            keyListener.accept(key);
           } else {
-            keyListener.keyReleased(keyEvent);
+            keyListener.accept("-" + key);
           }
         }
         this.button[i] = newButton;
       }
       dio.setMode(DeviceMode.DIGITAL_OUTPUT);
       strobeHigh();
-      synchronized (this) {
-        this.notifyAll();
-      }
     }
-    stop = false;
   }
 
   private static void sleep() {
@@ -159,11 +214,7 @@ public class Tm1638 extends Component implements AutoCloseable, Runnable {
     }
   }
 
-  public void print(String s) {
-    print(s, 0);
-  }
-
-  public void print(String s, int x) {
+  private void print(String s, int x) {
     for (int i = 0; i < s.length(); i++) {
       final char c = s.charAt(i);
       if (c == '.') {
@@ -173,22 +224,6 @@ public class Tm1638 extends Component implements AutoCloseable, Runnable {
       if (x >= 8) break;
       this.digit[x++] = (byte) to7(c);
     }
-  }
-
-  @Override
-  public void close() {
-    try {
-      synchronized (this) {
-        this.wait();
-        this.wait();
-      }
-      this.stop = true;
-      while (this.stop) Thread.sleep(1);
-    } catch (InterruptedException ignore) {
-    }
-    stb.close();
-    clk.close();
-    dio.close();
   }
 
 }

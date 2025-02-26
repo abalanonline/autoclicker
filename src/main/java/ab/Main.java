@@ -17,10 +17,7 @@
 
 package ab;
 
-import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
-
-public class Main implements KeyListener, AutoCloseable, Runnable {
+public class Main implements AutoCloseable, Runnable {
 
   public static final double[] RATES = {
       0.001, 0.002, 0.004, 0.008, 0.016, 0.032, 0.064, 0.125, 0.250, 0.500,
@@ -34,7 +31,8 @@ public class Main implements KeyListener, AutoCloseable, Runnable {
   public Main() {
     mouse = new HidGadgetMouse("/dev/hidg0");
     tm1638 = new Tm1638(17, 27, 22);
-    tm1638.keyListener = this;
+    tm1638.setKeyListener(this::keyPressed);
+    tm1638.open();
   }
 
   @Override
@@ -46,8 +44,8 @@ public class Main implements KeyListener, AutoCloseable, Runnable {
   }
 
   public void printRate() {
-    tm1638.print(String.format("%6s",
-        String.format("%f", RATES[rate]).replaceAll("0+$", "").replaceAll("\\.$", ".0")), 3);
+    tm1638.print(3, 0, String.format("%6s",
+        String.format("%f", RATES[rate]).replaceAll("0+$", "").replaceAll("\\.$", ".0")), 1);
   }
 
   @Override
@@ -70,51 +68,44 @@ public class Main implements KeyListener, AutoCloseable, Runnable {
       buttons = 0;
       for (int i = 0; i < 8; i++) buttons |= tm1638.button[i] ? 1 << i : 0;
     }
-    tm1638.print("        ");
   }
 
   public void test() {
     tm1638.brightness = 0;
-    tm1638.print("        ");
+    tm1638.print(0, 0, "        ", 1);
     for (int i = 0; i < 8; i++) {
-      tm1638.print(String.format("push %d  ", i + 1));
+      tm1638.print(0, 0, String.format("push %d  ", i + 1), 1);
       while (!tm1638.button[i]) {
         for (int j = 0; j < 8; j++) {
           tm1638.led[j] = tm1638.button[j];
         }
       }
     }
-    tm1638.print("        ");
   }
 
-  @Override
-  public void keyTyped(KeyEvent e) {
-  }
-
-  @Override
-  public void keyPressed(KeyEvent e) {
-    switch (e.getKeyCode()) {
-      case '0': tm1638.brightness = Math.max(0, tm1638.brightness - 1); break;
-      case '1': tm1638.brightness = Math.min(tm1638.brightness + 1, 7); break;
-      case '2': break;
-      case '3': mouse.move(-20, -10); break;
-      case '4':
+  public void keyPressed(String s) {
+    switch (s) {
+      case "1": tm1638.brightness = Math.max(0, tm1638.brightness - 1); break;
+      case "2": tm1638.brightness = Math.min(tm1638.brightness + 1, 7); break;
+      case "3": break;
+      case "4": mouse.move(-20, -10); break;
+      case "5":
         nano = System.nanoTime();
         rate = Math.max(0, rate - 1);
         printRate();
         break;
-      case '5':
+      case "6":
         nano = System.nanoTime();
         rate = Math.min(rate + 1, RATES.length - 1);
         printRate();
         break;
-      case '6':
+      case "7":
         nano = System.nanoTime();
         final boolean l = !hold[0];
         hold[0] = l;
         tm1638.led[6] = l;
         break;
-      case '7':
+      case "8":
         final boolean r = !hold[1];
         hold[1] = r;
         tm1638.led[7] = r;
@@ -123,21 +114,10 @@ public class Main implements KeyListener, AutoCloseable, Runnable {
     }
   }
 
-  @Override
-  public void keyReleased(KeyEvent e) {
-  }
-
-  public static void main(String[] args) throws Exception {
+  public static void main(String[] args) {
     try (final Main main = new Main()) {
       main.run();
     }
-//    try (HidGadgetMouse hidGadgetMouse = new HidGadgetMouse()) {
-//      Thread.sleep(500);
-//      hidGadgetMouse.move(50, -20);
-//    }
-//    try (Tm1638 tm1638 = new Tm1638(17, 27, 22)) {
-//      new Main(tm1638).test();
-//    }
   }
 
 }
