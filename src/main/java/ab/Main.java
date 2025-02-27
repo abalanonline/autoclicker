@@ -27,6 +27,7 @@ public class Main implements AutoCloseable, Runnable {
   private int rate = 10;
   private boolean[] hold = new boolean[3];
   private long nano;
+  private boolean[] button = new boolean[8];
 
   public Main() {
     mouse = new HidGadgetMouse("/dev/hidg0");
@@ -60,13 +61,13 @@ public class Main implements AutoCloseable, Runnable {
       final long p1 = Math.min(period / 2, 200_000_000);
       final boolean click = (System.nanoTime() - nano) % period < p1 && hold[0];
       mouse.click(0, click);
-      tm1638.led[4] = click;
+      tm1638.print(4, -1, click ? "1" : "0", 1);
       try {
         Thread.sleep(1);
       } catch (InterruptedException ignore) {
       }
       buttons = 0;
-      for (int i = 0; i < 8; i++) buttons |= tm1638.button[i] ? 1 << i : 0;
+      for (int i = 0; i < 8; i++) buttons |= this.button[i] ? 1 << i : 0;
     }
   }
 
@@ -75,9 +76,9 @@ public class Main implements AutoCloseable, Runnable {
     tm1638.print(0, 0, "        ", 1);
     for (int i = 0; i < 8; i++) {
       tm1638.print(0, 0, String.format("push %d  ", i + 1), 1);
-      while (!tm1638.button[i]) {
+      while (!this.button[i]) {
         for (int j = 0; j < 8; j++) {
-          tm1638.led[j] = tm1638.button[j];
+          tm1638.print(j, -1, this.button[j] ? "1" : "0", 1);
         }
       }
     }
@@ -103,14 +104,30 @@ public class Main implements AutoCloseable, Runnable {
         nano = System.nanoTime();
         final boolean l = !hold[0];
         hold[0] = l;
-        tm1638.led[6] = l;
+        tm1638.print(6, -1, l ? "1" : "0", 1);
         break;
       case "8":
         final boolean r = !hold[1];
         hold[1] = r;
-        tm1638.led[7] = r;
+        tm1638.print(7, -1, r ? "1" : "0", 1);
         mouse.click(1, r);
         break;
+      case "+1": button[0] = true; break;
+      case "+2": button[1] = true; break;
+      case "+3": button[2] = true; break;
+      case "+4": button[3] = true; break;
+      case "+5": button[4] = true; break;
+      case "+6": button[5] = true; break;
+      case "+7": button[6] = true; break;
+      case "+8": button[7] = true; break;
+      case "-1": button[0] = false; break;
+      case "-2": button[1] = false; break;
+      case "-3": button[2] = false; break;
+      case "-4": button[3] = false; break;
+      case "-5": button[4] = false; break;
+      case "-6": button[5] = false; break;
+      case "-7": button[6] = false; break;
+      case "-8": button[7] = false; break;
     }
   }
 

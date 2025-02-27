@@ -39,9 +39,9 @@ public class Tm1638 implements Tui {
   private Consumer<String> keyListener;
 
   public int brightness = 7;
-  public boolean[] led = new boolean[8];
+  private boolean[] led = new boolean[8];
   public byte[] digit = new byte[8];
-  public boolean[] button = new boolean[8];
+  private boolean[] button = new boolean[8];
 
   public Tm1638(int stbGpio, int clkGpio, int dioGpio) {
     this.stbGpio = stbGpio;
@@ -87,8 +87,16 @@ public class Tm1638 implements Tui {
     return new Dimension(8, 1);
   }
 
+  /**
+   * Leds located above the line of 7 segment displays, so they have y == -1.
+   * They are enabled by '1' and disabled by '0' or the low bit of any other symbol.
+   */
   @Override
   public void print(int x, int y, String s, int attr) {
+    if (y == -1) {
+      for (int i = 0; x < 8 && i < s.length();) led[x++] = (s.charAt(i++) & 1) > 0;
+      return;
+    }
     print(s, x);
   }
 
