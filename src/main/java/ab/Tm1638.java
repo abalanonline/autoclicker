@@ -27,7 +27,7 @@ import java.util.function.Consumer;
 
 public class Tm1638 implements Tui {
 
-  public static final int PWCLK_NS = 400;
+  private static final int PWCLK_NS = 400;
   private final int stbGpio;
   private final int clkGpio;
   private final int dioGpio;
@@ -38,10 +38,11 @@ public class Tm1638 implements Tui {
   private boolean open;
   private Consumer<String> keyListener;
 
-  public int brightness = 7;
-  private boolean[] led = new boolean[8];
-  public byte[] digit = new byte[8];
-  private boolean[] button = new boolean[8];
+  private int brightness;
+  private final boolean[] led = new boolean[8];
+  private final byte[] digit = new byte[8];
+  private final byte[] frontBuffer = new byte[8];
+  private final boolean[] button = new boolean[8];
 
   public Tm1638(int stbGpio, int clkGpio, int dioGpio) {
     this.stbGpio = stbGpio;
@@ -52,8 +53,10 @@ public class Tm1638 implements Tui {
   @Override
   public Tm1638 open() {
     if (open) throw new IllegalStateException("not closed");
-    for (int i = 0; i < 8; i++) button[i] = false;
+    //for (int i = 0; i < 8; i++) button[i] = false;
+    // button state must not be cleared, or else button hold between close and open will be reported as clicked again
     open = true;
+    brightness = 7;
     stb = new DigitalOutputDevice(stbGpio);
     clk = new DigitalOutputDevice(clkGpio);
     dio = new DigitalInputOutputDevice(dioGpio, DeviceMode.DIGITAL_OUTPUT);
@@ -67,6 +70,7 @@ public class Tm1638 implements Tui {
     if (!open) return;
     for (int i = 0; i < 8; i++) {
       digit[i] = 0;
+      frontBuffer[i] = 0;
       led[i] = false;
     }
     try {
@@ -90,10 +94,15 @@ public class Tm1638 implements Tui {
   /**
    * Leds located above the line of 7 segment displays, so they have y == -1.
    * They are enabled by '1' and disabled by '0' or the low bit of any other symbol.
+   * Brightness can be changed by writing "0" - "7" to x == -1, y == -1.
    */
   @Override
   public void print(int x, int y, String s, int attr) {
     if (y == -1) {
+      if (x == -1) {
+        brightness = s.charAt(0) - '0';
+        return;
+      }
       for (int i = 0; x < 8 && i < s.length();) led[x++] = (s.charAt(i++) & 1) > 0;
       return;
     }
@@ -102,7 +111,7 @@ public class Tm1638 implements Tui {
 
   @Override
   public void update() {
-    // TODO double buffering
+    System.arraycopy(digit, 0, frontBuffer, 0, 8);
   }
 
   @Override
@@ -119,7 +128,7 @@ public class Tm1638 implements Tui {
       writeCommand(0x40);
       command[0] = 0xC0;
       for (int i = 0, j = 0; i < 8; i++) {
-        command[++j] = this.digit[i];
+        command[++j] = this.frontBuffer[i];
         command[++j] = this.led[i] ? 0xFF : 0;
       }
       writeCommand(command);
@@ -198,7 +207,7 @@ public class Tm1638 implements Tui {
     strobeHigh();
   }
 
-  public static int to7(char c) {
+  private static int to7(char c) {
     int[] digit = {
         0b0111111, 0b0000110, 0b1011011, 0b1001111, 0b1100110, 0b1101101, 0b1111101, 0b0000111,
         0b1111111, 0b1101111, 0b1110111, 0b1111100, 0b0111001, 0b1011110, 0b1111001, 0b1110001};
@@ -230,7 +239,7 @@ public class Tm1638 implements Tui {
         continue;
       }
       if (x >= 8) break;
-      this.digit[x++] = (byte) to7(c);
+      this.digit[x++] = (c & 0xFF00) == 0xE100 ? (byte) c : (byte) to7(c);
     }
   }
 

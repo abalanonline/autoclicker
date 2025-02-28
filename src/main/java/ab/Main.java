@@ -28,6 +28,7 @@ public class Main implements AutoCloseable, Runnable {
   private boolean[] hold = new boolean[3];
   private long nano;
   private boolean[] button = new boolean[8];
+  private int brightness;
 
   public Main() {
     mouse = new HidGadgetMouse("/dev/hidg0");
@@ -51,10 +52,8 @@ public class Main implements AutoCloseable, Runnable {
 
   @Override
   public void run() {
-    tm1638.brightness = 0;
-    tm1638.digit[0] = 0b1011000;
-    tm1638.digit[1] = 0b0110100;
-    tm1638.digit[2] = 0b1011000;
+    tm1638.print(-1, -1, "0", 1);
+    tm1638.print(0, 0, "\uE158\uE134\uE158", 1);
     printRate();
     for (int buttons = 0; buttons != 7;) {
       long period = (long) (1_000_000_000 / RATES[rate]);
@@ -62,6 +61,7 @@ public class Main implements AutoCloseable, Runnable {
       final boolean click = (System.nanoTime() - nano) % period < p1 && hold[0];
       mouse.click(0, click);
       tm1638.print(4, -1, click ? "1" : "0", 1);
+      tm1638.update();
       try {
         Thread.sleep(1);
       } catch (InterruptedException ignore) {
@@ -72,7 +72,7 @@ public class Main implements AutoCloseable, Runnable {
   }
 
   public void test() {
-    tm1638.brightness = 0;
+    tm1638.print(-1, -1, "0", 1);
     tm1638.print(0, 0, "        ", 1);
     for (int i = 0; i < 8; i++) {
       tm1638.print(0, 0, String.format("push %d  ", i + 1), 1);
@@ -80,14 +80,15 @@ public class Main implements AutoCloseable, Runnable {
         for (int j = 0; j < 8; j++) {
           tm1638.print(j, -1, this.button[j] ? "1" : "0", 1);
         }
+        tm1638.update();
       }
     }
   }
 
   public void keyPressed(String s) {
     switch (s) {
-      case "1": tm1638.brightness = Math.max(0, tm1638.brightness - 1); break;
-      case "2": tm1638.brightness = Math.min(tm1638.brightness + 1, 7); break;
+      case "1": brightness = Math.max(0, brightness - 1); tm1638.print(-1, -1, "" + brightness, 1); break;
+      case "2": brightness = Math.min(brightness + 1, 7); tm1638.print(-1, -1, "" + brightness, 1); break;
       case "3": break;
       case "4": mouse.move(-20, -10); break;
       case "5":
@@ -105,11 +106,13 @@ public class Main implements AutoCloseable, Runnable {
         final boolean l = !hold[0];
         hold[0] = l;
         tm1638.print(6, -1, l ? "1" : "0", 1);
+        tm1638.update();
         break;
       case "8":
         final boolean r = !hold[1];
         hold[1] = r;
         tm1638.print(7, -1, r ? "1" : "0", 1);
+        tm1638.update();
         mouse.click(1, r);
         break;
       case "+1": button[0] = true; break;
