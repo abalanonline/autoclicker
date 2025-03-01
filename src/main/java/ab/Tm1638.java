@@ -17,10 +17,11 @@
 
 package ab;
 
+import ab.gpio.Diozero;
+import ab.gpio.Gpio;
+import ab.gpio.Gpiod;
+import ab.gpio.Sysfs;
 import ab.tui.Tui;
-import com.diozero.api.DeviceMode;
-import com.diozero.api.DigitalInputOutputDevice;
-import com.diozero.api.DigitalOutputDevice;
 
 import java.awt.Dimension;
 import java.util.function.Consumer;
@@ -28,12 +29,9 @@ import java.util.function.Consumer;
 public class Tm1638 implements Tui {
 
   private static final int PWCLK_NS = 400;
-  private final int stbGpio;
-  private final int clkGpio;
-  private final int dioGpio;
-  private DigitalOutputDevice stb;
-  private DigitalOutputDevice clk;
-  private DigitalInputOutputDevice dio;
+  private final Gpio stb;
+  private final Gpio clk;
+  private final Gpio dio;
   private Thread thread;
   private boolean open;
   private Consumer<String> keyListener;
@@ -43,11 +41,20 @@ public class Tm1638 implements Tui {
   private final byte[] digit = new byte[8];
   private final byte[] frontBuffer = new byte[8];
   private final boolean[] button = new boolean[8];
+  public final int latencySize = 10001;
+  public int latencyPtr;
+  public long[] latency = new long[latencySize];
 
   public Tm1638(int stbGpio, int clkGpio, int dioGpio) {
-    this.stbGpio = stbGpio;
-    this.clkGpio = clkGpio;
-    this.dioGpio = dioGpio;
+    this.stb = new Diozero(87);
+    this.clk = new Diozero(88);
+    this.dio = new Diozero(90);
+//    this.stb = new Gpiod(1, 87);
+//    this.clk = new Gpiod(1, 88);
+//    this.dio = new Gpiod(1, 90);
+//    this.stb = new Sysfs(488);
+//    this.clk = new Sysfs(489);
+//    this.dio = new Sysfs(491);
   }
 
   @Override
@@ -57,9 +64,9 @@ public class Tm1638 implements Tui {
     // button state must not be cleared, or else button hold between close and open will be reported as clicked again
     open = true;
     brightness = 7;
-    stb = new DigitalOutputDevice(stbGpio);
-    clk = new DigitalOutputDevice(clkGpio);
-    dio = new DigitalInputOutputDevice(dioGpio, DeviceMode.DIGITAL_OUTPUT);
+    stb.open();
+    clk.open();
+    dio.open();
     thread = new Thread(this::run);
     thread.start();
     return this;
@@ -122,6 +129,7 @@ public class Tm1638 implements Tui {
   private void run() {
     int[] command = new int[17];
     while (open) {
+      long nanoTime = System.nanoTime();
       synchronized (this) {
         this.notifyAll();
       }
@@ -136,8 +144,7 @@ public class Tm1638 implements Tui {
 
       strobeLow();
       writeByte(0x42);
-      dio.setValue(true);
-      dio.setMode(DeviceMode.DIGITAL_INPUT);
+      dio.set(true);
       int btnByte = 0;
       for (int i = 0; i < 4; i++) btnByte |= readByte() << i;
       for (int i = 0; i < 8; i++) {
@@ -154,8 +161,9 @@ public class Tm1638 implements Tui {
         }
         this.button[i] = newButton;
       }
-      dio.setMode(DeviceMode.DIGITAL_OUTPUT);
       strobeHigh();
+      latency[latencyPtr] = System.nanoTime() - nanoTime;
+      if (++latencyPtr >= latencySize) latencyPtr = 0;
     }
   }
 
@@ -166,10 +174,10 @@ public class Tm1638 implements Tui {
 
   private void writeByte(int data) {
     for (int i = 0; i < 8; i++) {
-      clk.off();
-      dio.setValue((1 << i & data) != 0);
+      clk.set(false);
+      dio.set((1 << i & data) != 0);
       sleep();
-      clk.on();
+      clk.set(true);
       sleep();
     }
   }
@@ -177,25 +185,25 @@ public class Tm1638 implements Tui {
   private int readByte() {
     int data = 0;
     for (int i = 0; i < 8; i++) {
-      clk.off();
+      clk.set(false);
       sleep();
-      data |= (dio.getValue() ? 1 : 0) << i;
-      clk.on();
+      data |= (dio.get() ? 1 : 0) << i;
+      clk.set(true);
       sleep();
     }
     return data;
   }
 
   private void strobeLow() {
-    stb.on();
-    clk.on();
+    stb.set(true);
+    clk.set(true);
     sleep();
-    stb.off();
+    stb.set(false);
     sleep();
   }
 
   private void strobeHigh() {
-    stb.on();
+    stb.set(true);
     sleep();
   }
 
