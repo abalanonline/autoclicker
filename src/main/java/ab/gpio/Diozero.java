@@ -22,7 +22,7 @@ import com.diozero.api.DeviceMode;
 import com.diozero.api.DigitalInputOutputDevice;
 
 /**
- * 728 fps
+ * 733 fps
  */
 public class Diozero implements Gpio {
   private final int offset;

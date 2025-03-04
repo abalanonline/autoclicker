@@ -17,11 +17,17 @@
 
 package ab;
 
+import ab.gpio.Dz;
+import ab.gpio.Gpio;
+
 public class Main implements AutoCloseable, Runnable {
 
   public static final double[] RATES = {
       0.001, 0.002, 0.004, 0.008, 0.016, 0.032, 0.064, 0.125, 0.250, 0.500,
       1.0, 2.0, 4.0, 8.0, 16.0, 32.0};
+  private final Gpio stb;
+  private final Gpio clk;
+  private final Gpio dio;
   private final Tm1638 tm1638;
   private final HidGadgetMouse mouse;
   private int rate = 10;
@@ -32,7 +38,10 @@ public class Main implements AutoCloseable, Runnable {
 
   public Main() {
     mouse = new HidGadgetMouse("/dev/hidg0");
-    tm1638 = new Tm1638(17, 27, 22);
+    stb = new Dz(0, 17);
+    clk = new Dz(0, 27);
+    dio = new Dz(0, 22);
+    tm1638 = new Tm1638(stb, clk, dio);
     tm1638.setKeyListener(this::keyPressed);
     tm1638.open();
   }
@@ -42,6 +51,9 @@ public class Main implements AutoCloseable, Runnable {
     mouse.click(0, false);
     mouse.click(1, false);
     tm1638.close();
+    stb.close();
+    clk.close();
+    dio.close();
     mouse.close();
   }
 

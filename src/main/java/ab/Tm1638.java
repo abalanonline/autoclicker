@@ -17,10 +17,7 @@
 
 package ab;
 
-import ab.gpio.Diozero;
 import ab.gpio.Gpio;
-import ab.gpio.Gpiod;
-import ab.gpio.Sysfs;
 import ab.tui.Tui;
 
 import java.awt.Dimension;
@@ -45,16 +42,10 @@ public class Tm1638 implements Tui {
   public int latencyPtr;
   public long[] latency = new long[latencySize];
 
-  public Tm1638(int stbGpio, int clkGpio, int dioGpio) {
-    this.stb = new Diozero(87);
-    this.clk = new Diozero(88);
-    this.dio = new Diozero(90);
-//    this.stb = new Gpiod(1, 87);
-//    this.clk = new Gpiod(1, 88);
-//    this.dio = new Gpiod(1, 90);
-//    this.stb = new Sysfs(488);
-//    this.clk = new Sysfs(489);
-//    this.dio = new Sysfs(491);
+  public Tm1638(Gpio stb, Gpio clk, Gpio dio) {
+    this.stb = stb;
+    this.clk = clk;
+    this.dio = dio;
   }
 
   @Override
