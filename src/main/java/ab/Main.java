@@ -17,17 +17,17 @@
 
 package ab;
 
-import ab.gpio.Dz;
-import ab.gpio.Gpio;
+import ab.gpio.Pin;
+import ab.gpio.Tm1638;
 
 public class Main implements AutoCloseable, Runnable {
 
   public static final double[] RATES = {
       0.001, 0.002, 0.004, 0.008, 0.016, 0.032, 0.064, 0.125, 0.250, 0.500,
       1.0, 2.0, 4.0, 8.0, 16.0, 32.0};
-  private final Gpio stb;
-  private final Gpio clk;
-  private final Gpio dio;
+  private final Pin stb;
+  private final Pin clk;
+  private final Pin dio;
   private final Tm1638 tm1638;
   private final HidGadgetMouse mouse;
   private int rate = 10;
@@ -38,9 +38,9 @@ public class Main implements AutoCloseable, Runnable {
 
   public Main() {
     mouse = new HidGadgetMouse("/dev/hidg0");
-    stb = new Dz(0, 17);
-    clk = new Dz(0, 27);
-    dio = new Dz(0, 22);
+    stb = new Pin(0, 17);
+    clk = new Pin(0, 27);
+    dio = new Pin(0, 22);
     tm1638 = new Tm1638(stb, clk, dio);
     tm1638.setKeyListener(this::keyPressed);
     tm1638.open();
@@ -64,7 +64,7 @@ public class Main implements AutoCloseable, Runnable {
 
   @Override
   public void run() {
-    tm1638.print(-1, -1, "0", 1);
+    tm1638.setBrightness(0);
     tm1638.print(0, 0, "\uE158\uE134\uE158", 1);
     printRate();
     for (int buttons = 0; buttons != 7;) {
@@ -84,7 +84,7 @@ public class Main implements AutoCloseable, Runnable {
   }
 
   public void test() {
-    tm1638.print(-1, -1, "0", 1);
+    tm1638.setBrightness(0);
     tm1638.print(0, 0, "        ", 1);
     for (int i = 0; i < 8; i++) {
       tm1638.print(0, 0, String.format("push %d  ", i + 1), 1);
@@ -99,8 +99,8 @@ public class Main implements AutoCloseable, Runnable {
 
   public void keyPressed(String s) {
     switch (s) {
-      case "1": brightness = Math.max(0, brightness - 1); tm1638.print(-1, -1, "" + brightness, 1); break;
-      case "2": brightness = Math.min(brightness + 1, 7); tm1638.print(-1, -1, "" + brightness, 1); break;
+      case "1": brightness = Math.max(0, brightness - 1); tm1638.setBrightness(brightness); break;
+      case "2": brightness = Math.min(brightness + 1, 3); tm1638.setBrightness(brightness); break;
       case "3": break;
       case "4": mouse.move(-20, -10); break;
       case "5":
