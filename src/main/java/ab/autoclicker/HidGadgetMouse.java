@@ -15,7 +15,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package ab;
+package ab.autoclicker;
 
 import java.io.BufferedReader;
 import java.io.IOException;

@@ -15,12 +15,18 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package ab.gpio;
+package ab.autoclicker;
 
-public interface Gpio extends AutoCloseable {
-  void open();
-  @Override
-  void close();
-  void set(boolean v);
-  boolean get();
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class MainTest {
+
+  @Test
+  void test() {
+    try (final Main main = new Main(new ScreenDevice().open())) {
+      main.run();
+    }
+  }
 }
