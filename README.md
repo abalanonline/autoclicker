@@ -1,6 +1,25 @@
 # autoclicker
 open-source hardware autoclicker
 
+### hardware
+- Raspberry Pi Zero WH
+- TM1638 (see picture)
+- jumper wires
+- SD card 4GB
+- micro USB cable
+
+![autoclicker](src/test/resources/autoclicker.png)
+
+### pins connections
+
+| TM1638 | Raspberry Pi |
+| ------ | ------------ |
+| VCC    | 17 3.3v      |
+| GND    | 09 Ground    |
+| STB    | 11 GPIO17    |
+| CLK    | 13 GPIO27    |
+| DIO    | 15 GPIO22    |
+
 ### enable ssh
 ```
 sudo raspi-config
