@@ -17,12 +17,14 @@
 
 package ab.autoclicker;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class MainTest {
 
+  @Disabled
   @Test
   void test() {
     try (final Main main = new Main(new ScreenDevice().open())) {

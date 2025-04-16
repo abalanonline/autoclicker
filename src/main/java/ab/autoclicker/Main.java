@@ -20,10 +20,11 @@ package ab.autoclicker;
 public class Main implements AutoCloseable, Runnable {
 
   public static final double[] RATES = {
-      0.001, 0.002, 0.004, 0.008, 0.016, 0.032, 0.064, 0.125, 0.250, 0.500,
+      0, 0.008, 0.016, 0.032, 0.064, 0.125, 0.250, 0.500,
       1.0, 2.0, 4.0, 8.0, 16.0, 32.0};
-  private int rate = 10;
-  private boolean[] hold = new boolean[3];
+  public static final int FINE = 8;
+  private int rate = 8 * FINE;
+  private int hold;
   private long nano;
   private boolean exit1;
   private boolean exit2;
@@ -40,9 +41,23 @@ public class Main implements AutoCloseable, Runnable {
     device.close();
   }
 
+  protected double getRate() {
+    int rc = rate / FINE;
+    int rf = rate % FINE;
+    double r0 = RATES[rc];
+    if (rf == 0) return r0;
+    double r1 = RATES[rc + 1];
+    if (rc < 2) return (r1 - r0) * rf / FINE + r0; // linear part
+    // linear interpolation
+    return Math.exp((Math.log(r0) * (FINE - rf) + Math.log(r1) * rf) / FINE);
+  }
+
   public void printRate() {
-    device.print(3, 0, String.format("%6s",
-        String.format("%f", RATES[rate]).replaceAll("0+$", "").replaceAll("\\.$", ".0")));
+    double rate = getRate();
+    int precision = 3;
+    if (rate > 0.125) precision = 2;
+    if (rate >= 1) precision = 1;
+    device.print(3, 0, String.format("%6s", String.format("%." + precision + "f", rate)));
   }
 
   @Override
@@ -51,11 +66,17 @@ public class Main implements AutoCloseable, Runnable {
     device.print(0, 0, "\uE158\uE134\uE158");
     printRate();
     while (!(exit1 && exit2)) {
-      long period = (long) (1_000_000_000 / RATES[rate]);
-      final long p1 = Math.min(period / 2, 200_000_000);
-      final boolean click = (System.nanoTime() - nano) % period < p1 && hold[0];
-      device.click(0, click);
-      device.print(4, -1, click ? "1" : "0");
+      double rate = getRate();
+      boolean click = true;
+      if (rate > 0) {
+        long period = (long) (1_000_000_000 / rate);
+        final long p1 = Math.min(period / 2, 200_000_000);
+        click = (System.nanoTime() - nano) % period < p1;
+      }
+      if (hold > 0) {
+        device.click(hold - 1, click);
+        device.print(4, -1, click ? "1" : "0");
+      }
       device.update();
       try {
         Thread.sleep(1);
@@ -64,35 +85,47 @@ public class Main implements AutoCloseable, Runnable {
     }
   }
 
+  protected void setRate(int rate) {
+    nano = System.nanoTime();
+    this.rate = Math.min(Math.max(0, rate), (RATES.length - 1) * FINE);
+    printRate();
+  }
+
   public void keyPressed(String s) {
     switch (s) {
-      case "1": brightness = Math.max(0, brightness - 1); device.setBrightness(brightness); break;
-      case "2": brightness = Math.min(brightness + 1, 3); device.setBrightness(brightness); break;
-      case "3": break;
-      case "4": device.move(-20, -10); break;
-      case "5":
-        nano = System.nanoTime();
-        rate = Math.max(0, rate - 1);
-        printRate();
-        break;
-      case "6":
-        nano = System.nanoTime();
-        rate = Math.min(rate + 1, RATES.length - 1);
-        printRate();
-        break;
+      case "1": brightness = Math.max(0, brightness - 1); device.setBrightness(brightness); device.move(-16, 0); break;
+      case "2": brightness = Math.min(brightness + 1, 3); device.setBrightness(brightness); device.move(16, 0); break;
+      case "3": setRate(rate - 1); break;
+      case "4": setRate(rate + 1); break;
+      case "5": setRate(rate - (rate - 1) % FINE - 1); break;
+      case "6": setRate(rate - (rate % FINE) + FINE); break;
       case "7":
         nano = System.nanoTime();
-        final boolean l = !hold[0];
-        hold[0] = l;
-        device.print(6, -1, l ? "1" : "0");
+        if (hold > 0) {
+          device.click(hold - 1, false);
+          device.print(5 + hold, -1, "0");
+        }
+        if (hold != 1) {
+          hold = 1;
+          device.print(5 + hold, -1, "1");
+        } else {
+          hold = 0;
+        }
         device.update();
         break;
       case "8":
-        final boolean r = !hold[1];
-        hold[1] = r;
-        device.print(7, -1, r ? "1" : "0");
+        nano = System.nanoTime();
+        if (hold > 0) {
+          device.click(hold - 1, false);
+          device.print(5 + hold, -1, "0");
+        }
+        if (hold != 2) {
+          hold = 2;
+          device.print(5 + hold, -1, "1");
+        } else {
+          hold = 0;
+        }
         device.update();
-        device.click(1, r);
         break;
       case "+1": exit1 = true; break;
       case "+2": exit2 = true; break;
