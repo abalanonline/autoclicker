@@ -1,6 +1,10 @@
 # autoclicker
 open-source hardware autoclicker
 
+[video](https://youtu.be/59LoqYHKqVw)
+
+![autoclicker](https://img.youtube.com/vi/59LoqYHKqVw/mqdefault.jpg)
+
 ### hardware
 - Raspberry Pi Zero WH
 - TM1638 (see picture)
